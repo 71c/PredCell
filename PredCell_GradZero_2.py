@@ -23,23 +23,28 @@ writer = SummaryWriter(f'runs/testPredCell/tryingout_tensorboard')
 
 
 class StateUnit(nn.Module):
-    def __init__(self, layer_level, timestep, thislayer_dim, lowerlayer_dim, isTopLayer=False):
+    def __init__(self, layer_level, timestep, thislayer_dim, lowerlayer_dim, is_top_layer=False):
         super().__init__()
+        
         self.layer_level = layer_level
         self.timestep = timestep
-        self.isTopLayer = isTopLayer
-        if self.isTopLayer:
-            self.LSTM_ = nn.LSTM(thislayer_dim, thislayer_dim, 1)
-        else:
-            self.LSTM_ = nn.LSTM((2 * thislayer_dim), thislayer_dim, 1)
-        self.state = torch.squeeze(torch.tensor(np.zeros(shape=(thislayer_dim, 1)), dtype=torch.float32))
+        self.is_top_layer = is_top_layer
+
+        self.LSTM_ = nn.LSTM(
+            input_size=thislayer_dim if is_top_layer else 2 * thislayer_dim,
+            hidden_size=thislayer_dim, num_layers=1)
+
+        self.state = torch.zeros(thislayer_dim, dtype=torch.float32)
         # reconstructions at all other time points will be determined by the state
-        self.recon = torch.squeeze(torch.tensor(np.zeros(shape=(lowerlayer_dim, 1)), dtype=torch.float32))
-        self.V = nn.Linear(thislayer_dim, lowerlayer_dim)  # maps from this layer to the lower layer
+        self.recon = torch.zeros(lowerlayer_dim, dtype=torch.float32)
+
+        # maps from this layer to the lower layer
+        # Note: includes a bias
+        self.V = nn.Linear(thislayer_dim, lowerlayer_dim)
 
     def forward(self, BU_err, TD_err):
         self.timestep += 1
-        if self.isTopLayer:
+        if self.is_top_layer:
             tmp = torch.unsqueeze(BU_err, 0)
             tmp = torch.unsqueeze(tmp, 0)
             #tmp = torch.tensor(tmp, dtype = torch.float32)
@@ -83,7 +88,6 @@ class PredCells(nn.Module):
         self.st_units = []
         self.err_units = []
         self.hidden_dim = hidden_dim
-        isTopLayer = False
         for lyr in range(self.num_layers):
             if lyr == 0:
                 self.st_units.append(StateUnit(lyr, 0, self.numchars, self.numchars))
@@ -95,7 +99,7 @@ class PredCells(nn.Module):
                     self.st_units.append(StateUnit(lyr, 0, hidden_dim, hidden_dim))
                 self.err_units.append(ErrorUnit(lyr, 0, hidden_dim, hidden_dim))
             else:
-                self.st_units.append(StateUnit(lyr, 0, hidden_dim, hidden_dim, isTopLayer=True))
+                self.st_units.append(StateUnit(lyr, 0, hidden_dim, hidden_dim, is_top_layer=True))
                 self.err_units.append(ErrorUnit(lyr, 0, hidden_dim, hidden_dim))
 
     def forward(self, input_sentence, iternumber):
