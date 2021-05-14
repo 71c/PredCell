@@ -1,32 +1,25 @@
 import torch
 import torch.nn as nn
-import numpy as np
 
 
 class StateUnit(nn.Module):
-    def __init__(self, layer_level, timestep, thislayer_dim, lowerlayer_dim, is_top_layer=False):
+    def __init__(self, layer_level, thislayer_dim, lowerlayer_dim, is_top_layer=False):
         super().__init__()
         
         self.layer_level = layer_level
-        self.timestep = timestep
-        self.is_top_layer = is_top_layer
-
-        self.LSTM_ = nn.LSTM(
-            input_size=thislayer_dim if is_top_layer else 2 * thislayer_dim,
-            hidden_size=thislayer_dim, num_layers=1)
-        
+        self.timestep = 0
+        self.is_top_layer = is_top_layer        
         self.thislayer_dim = thislayer_dim
         self.lowerlayer_dim = lowerlayer_dim
 
         self.init_vars()
 
-        # self.state = torch.zeros(thislayer_dim, dtype=torch.float32)
-        # reconstructions at all other time points will be determined by the state
-        # self.recon = torch.zeros(lowerlayer_dim, dtype=torch.float32)
-
         # maps from this layer to the lower layer
         # Note: includes a bias
         self.V = nn.Linear(thislayer_dim, lowerlayer_dim)
+        self.LSTM_ = nn.LSTM(
+            input_size=thislayer_dim if is_top_layer else 2 * thislayer_dim,
+            hidden_size=thislayer_dim, num_layers=1)
 
     def forward(self, BU_err, TD_err):
         self.timestep += 1
@@ -55,12 +48,13 @@ class StateUnit(nn.Module):
 
 
 class ErrorUnit(nn.Module):
-    def __init__(self, layer_level, timestep, thislayer_dim, higherlayer_dim):
+    def __init__(self, layer_level, thislayer_dim, higherlayer_dim):
         super().__init__()
         self.layer_level = layer_level
-        self.timestep = timestep
+        self.timestep = 0
         self.thislayer_dim = thislayer_dim
         self.higherlayer_dim = higherlayer_dim
+
         self.init_vars()
         self.W = nn.Linear(thislayer_dim, higherlayer_dim)  # maps up to the next layer
 
@@ -88,17 +82,17 @@ class PredCell(nn.Module):
         self.hidden_dim = hidden_dim
         for lyr in range(self.num_layers):
             if lyr == 0:
-                self.st_units.append(StateUnit(lyr, 0, self.numchars, self.numchars))
-                self.err_units.append(ErrorUnit(lyr, 0, self.numchars, hidden_dim))
+                self.st_units.append(StateUnit(lyr, self.numchars, self.numchars))
+                self.err_units.append(ErrorUnit(lyr, self.numchars, hidden_dim))
             elif lyr < self.num_layers - 1 and lyr > 0:
                 if lyr == 1:
-                    self.st_units.append(StateUnit(lyr, 0, hidden_dim, self.numchars))
+                    self.st_units.append(StateUnit(lyr, hidden_dim, self.numchars))
                 else:
-                    self.st_units.append(StateUnit(lyr, 0, hidden_dim, hidden_dim))
-                self.err_units.append(ErrorUnit(lyr, 0, hidden_dim, hidden_dim))
+                    self.st_units.append(StateUnit(lyr, hidden_dim, hidden_dim))
+                self.err_units.append(ErrorUnit(lyr, hidden_dim, hidden_dim))
             else:
-                self.st_units.append(StateUnit(lyr, 0, hidden_dim, hidden_dim, is_top_layer=True))
-                self.err_units.append(ErrorUnit(lyr, 0, hidden_dim, hidden_dim))
+                self.st_units.append(StateUnit(lyr, hidden_dim, hidden_dim, is_top_layer=True))
+                self.err_units.append(ErrorUnit(lyr, hidden_dim, hidden_dim))
 
     def forward(self, input_sentence, iternumber):
         loss = 0
@@ -129,7 +123,7 @@ class PredCell(nn.Module):
                     # assign a bit less importance to higher layers
                     loss = loss + torch.sum(torch.abs(self.err_units[lyr].TD_err))*lambda2**(lyr)
         return loss
-    
+
     def init_vars(self):
         '''Sets all states and errors to zero vectors.'''
         for st_unit, err_unit in zip(self.st_units, self.err_units):
@@ -137,6 +131,6 @@ class PredCell(nn.Module):
             err_unit.init_vars()
 
 
-if __name__ == "__main__":#def __init__(self, num_layers, total_timesteps, hidden_dim):
+if __name__ == "__main__":
     predcell = PredCell(3, 100, 128)
     predcell.init_vars()

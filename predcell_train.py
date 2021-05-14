@@ -1,6 +1,7 @@
 from predcell import *
 import tensorflow as tf
 import io
+import numpy as np
 
 from torch.utils.tensorboard import SummaryWriter
 writer = SummaryWriter(f'runs/testPredCell/tryingout_tensorboard')
