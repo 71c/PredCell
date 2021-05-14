@@ -19,7 +19,8 @@ print("Corpus length:", len(text))
 # text = text[0:50000] #reducing size to test
 
 chars = sorted(list(set(text)))
-print("Total chars:", len(chars))
+n_chars = len(chars)
+print("Total chars:", n_chars)
 char_indices = dict((c, i) for i, c in enumerate(chars))
 indices_char = dict((i, c) for i, c in enumerate(chars))
 
@@ -33,8 +34,8 @@ for i in range(0, len(text) - maxlen, step):
     next_chars.append(text[i + maxlen])
 print("Number of sequences:", len(sentences))
 
-x = np.zeros((len(sentences), maxlen, len(chars)), dtype=np.bool)
-y = np.zeros((len(sentences), len(chars)), dtype=np.bool)
+x = np.zeros((len(sentences), maxlen, n_chars), dtype=np.bool)
+y = np.zeros((len(sentences), n_chars), dtype=np.bool)
 for i, sentence in enumerate(sentences):
     for t, char in enumerate(sentence):
         x[i, t, char_indices[char]] = 1
@@ -43,7 +44,7 @@ for i, sentence in enumerate(sentences):
 # note that this means that y[i] == x[i+1][-3]
 
 # PredCell(num_layers, total_timesteps, hidden_dim)
-predcell = PredCell(3, maxlen, 128)
+predcell = PredCell(3, maxlen, 128, n_chars)
 trainable_st_params = [p for model in predcell.st_units for p in model.parameters() if p.requires_grad]
 trainable_err_params = [p for model in predcell.err_units for p in model.parameters() if p.requires_grad]
 
