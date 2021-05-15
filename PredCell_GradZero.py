@@ -201,7 +201,7 @@ trainable_params = trainable_st_params + trainable_err_params
 
 training_loss = []
 optimizer = torch.optim.Adam(trainable_params)
-num_epochs = 1
+num_epochs = 3000
 stopcode = False
 PATH = r'C:\Users\Samer Nour Eddine\Downloads\XAI\state_dict_model_trial.pt'
 stp = False

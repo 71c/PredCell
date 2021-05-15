@@ -4,7 +4,7 @@ import io
 import numpy as np
 
 from torch.utils.tensorboard import SummaryWriter
-writer = SummaryWriter('runs/run3')
+writer = SummaryWriter('runs/run8')
 # $tensorboard --logdir "runs"
 # run something like the above command in a terminal, then navigate to http://localhost:6006 to see the Tensorboard visualization
 # have a different run folder for different runs of your program
@@ -43,8 +43,8 @@ for i, sentence in enumerate(sentences):
 
 # note that this means that y[i] == x[i+1][-3]
 
-# PredCell(num_layers, total_timesteps, hidden_dim)
-predcell = PredCell(3, maxlen, 128, n_chars)
+# PredCells(num_layers, total_timesteps, hidden_dim)
+predcell = PredCells(3, maxlen, 128, n_chars)
 
 trainable_st_params = [p for model in predcell.st_units for p in model.parameters() if p.requires_grad]
 trainable_err_params = [p for model in predcell.err_units for p in model.parameters() if p.requires_grad]
@@ -55,10 +55,16 @@ for lyr, (st_unit, err_unit) in enumerate(zip(predcell.st_units, predcell.err_un
     names_and_params.append((f'st_units[{lyr}].V.weight', st_unit.V.weight))
     names_and_params.append((f'st_units[{lyr}].V.bias', st_unit.V.bias))
 
-    names_and_params.append((f'st_units[{lyr}].LSTM.weight_ih_l', st_unit.LSTM_.weight_ih_l0))
-    names_and_params.append((f'st_units[{lyr}].LSTM.weight_hh_l', st_unit.LSTM_.weight_hh_l0))
-    names_and_params.append((f'st_units[{lyr}].LSTM.bias_ih_l', st_unit.LSTM_.bias_ih_l0))
-    names_and_params.append((f'st_units[{lyr}].LSTM.bias_hh_l', st_unit.LSTM_.bias_hh_l0))
+    if type(st_unit.LSTM_) is torch.nn.modules.rnn.LSTM:
+        names_and_params.append((f'st_units[{lyr}].LSTM.weight_ih_l', st_unit.LSTM_.weight_ih_l0))
+        names_and_params.append((f'st_units[{lyr}].LSTM.weight_hh_l', st_unit.LSTM_.weight_hh_l0))
+        names_and_params.append((f'st_units[{lyr}].LSTM.bias_ih_l', st_unit.LSTM_.bias_ih_l0))
+        names_and_params.append((f'st_units[{lyr}].LSTM.bias_hh_l', st_unit.LSTM_.bias_hh_l0))
+    elif type(st_unit.LSTM_) is torch.nn.modules.rnn.LSTMCell:
+        names_and_params.append((f'st_units[{lyr}].LSTM.weight_ih', st_unit.LSTM_.weight_ih))
+        names_and_params.append((f'st_units[{lyr}].LSTM.weight_hh', st_unit.LSTM_.weight_hh))
+        names_and_params.append((f'st_units[{lyr}].LSTM.bias_ih', st_unit.LSTM_.bias_ih))
+        names_and_params.append((f'st_units[{lyr}].LSTM.bias_hh', st_unit.LSTM_.bias_hh))
 
     names_and_params.append((f'err_units[{lyr}].W.weight', err_unit.W.weight))
     names_and_params.append((f'err_units[{lyr}].W.bias', err_unit.W.bias))
@@ -88,8 +94,7 @@ trainable_params = trainable_st_params + trainable_err_params
 
 training_loss = []
 optimizer = torch.optim.Adam(trainable_params)
-num_epochs = 1
-stopcode = False
+num_epochs = 5
 PATH = r'C:\Users\Samer Nour Eddine\Downloads\XAI\state_dict_model_trial.pt'
 stp = False
 step = 0
@@ -111,7 +116,6 @@ for epoch in range(num_epochs):
         torch.nn.utils.clip_grad_norm(trainable_params, max_norm=1)
         optimizer.step()
 
-
         for param_name, param in names_and_params:
             writer.add_histogram(param_name, param, global_step=step)
             if param.grad is None:
@@ -126,18 +130,11 @@ for epoch in range(num_epochs):
         # for i, param in enumerate(trainable_st_params[6:]):
         #     writer.add_histogram('st_weights'+str(6+i), param, global_step=step)
         #     writer.add_histogram('st_grads'+str(6+i), param.grad, global_step=step)
-        
 
-
-        # print(trainable_st_params[0]) 
-        # print(trainable_st_params[0].grad)
-
-
-        # writer.add_histogram('state_gradient', trainable_st_params[0].grad,global_step = step)
         optimizer.zero_grad()
         training_loss.append(loss.detach().item())
-        if training_loss[-1] < 2:
-            stp = True
+        if training_loss[-1] < 2: 
+            stp = True           ##### What are you doing here??? #######
 
         writer.add_scalar('Training Loss', loss, global_step=step)
         step += 1

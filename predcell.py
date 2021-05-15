@@ -11,38 +11,61 @@ class StateUnit(nn.Module):
         self.thislayer_dim = thislayer_dim
         self.lowerlayer_dim = lowerlayer_dim
 
+        # Set state, recon, timestep to 0
         self.init_vars()
 
         # maps from this layer to the lower layer
         # Note: includes a bias
         self.V = nn.Linear(thislayer_dim, lowerlayer_dim)
-        self.LSTM_ = nn.LSTM(
+        
+        ######## OLD VERSION: ########
+        # self.LSTM_ = nn.LSTM(
+        #     input_size=thislayer_dim if is_top_layer else 2 * thislayer_dim,
+        #     hidden_size=thislayer_dim)
+        ######## NEW, CORRECTED VERSION: ########
+        self.LSTM_ = nn.LSTMCell(
             input_size=thislayer_dim if is_top_layer else 2 * thislayer_dim,
-            hidden_size=thislayer_dim, num_layers=1)
+            hidden_size=thislayer_dim)
 
     def forward(self, BU_err, TD_err):
         self.timestep += 1
+        
+        ######## OLD VERSION: ########
+        # if self.is_top_layer:
+        #     tmp = torch.unsqueeze(BU_err,0)
+        #     tmp = torch.unsqueeze(tmp, 0)
+        #     #tmp = torch.tensor(tmp, dtype = torch.float32)
+        #     temp, _ = self.LSTM_(tmp)
+        #     self.state = torch.squeeze(temp)
+        # else:
+        #     tmp = torch.unsqueeze(torch.cat((BU_err, TD_err), axis = 0),0)
+        #     tmp = torch.unsqueeze(tmp, 0)
+        #     #tmp = torch.tensor(tmp, dtype = torch.float32)
+        #     temp, _ = self.LSTM_(tmp)
+        #     self.state = torch.squeeze(temp)
+        ######## NEW, CORRECTED VERSION: ########
         if self.is_top_layer:
-            tmp = torch.unsqueeze(BU_err, 0)
-            tmp = torch.unsqueeze(tmp, 0)
-            #tmp = torch.tensor(tmp, dtype = torch.float32)
-            temp, _ = self.LSTM_(tmp)
-            self.state = torch.squeeze(temp)
+            input = torch.unsqueeze(BU_err, 0) # make it so there is 1 batch
         else:
-            tmp = torch.unsqueeze(torch.cat((BU_err, TD_err), axis=0), 0)
-            tmp = torch.unsqueeze(tmp, 0)
-            #tmp = torch.tensor(tmp, dtype = torch.float32)
-            temp, _ = self.LSTM_(tmp)
-            self.state = torch.squeeze(temp)
+            input = torch.unsqueeze(torch.cat((BU_err, TD_err), axis=0), 0)
+        h_0 = torch.unsqueeze(self.state, 0) # make 1 batch
+        c_0 = torch.unsqueeze(self.cell_state, 0) # make 1 batch
+        h_1, c_1 = self.LSTM_(input, (h_0, c_0))
+        self.state = torch.squeeze(h_1) # remove batch
+        self.cell_state = torch.squeeze(c_1) # remove batch
+
+
+
         self.recon = self.V(self.state)
 
     def set_state(self, input_char):
         self.state = input_char
-    
+
     def init_vars(self):
         '''Sets state and reconstruction to zero, and set timestep to 0'''
         self.timestep = 0
         self.state = torch.zeros(self.thislayer_dim, dtype=torch.float32)
+        self.cell_state = torch.zeros(self.thislayer_dim, dtype=torch.float32)
         # reconstructions at all other time points will be determined by the state
         self.recon = torch.zeros(self.lowerlayer_dim, dtype=torch.float32)
 
@@ -72,7 +95,7 @@ class ErrorUnit(nn.Module):
         self.BU_err = torch.zeros(self.higherlayer_dim, dtype=torch.float32)
 
 
-class PredCell(nn.Module):
+class PredCells(nn.Module):
     def __init__(self, num_layers, total_timesteps, hidden_dim, numchars):
         super().__init__()
         self.num_layers = num_layers
@@ -117,12 +140,18 @@ class PredCell(nn.Module):
                     self.err_units[lyr].forward(self.st_units[lyr].state, self.st_units[lyr+1].recon)
                 else:
                     pass
+                
+                # Update Loss
+
                 if iternumber <= 1000:
                     # assign much less importance to errors at higher layers
-                    loss = loss + torch.sum(torch.abs(self.err_units[lyr].TD_err))*(lambda1**(lyr))
+                    loss += torch.sum(torch.abs(self.err_units[lyr].TD_err))*(lambda1**(lyr))
                 if iternumber > 1000:
                     # assign a bit less importance to higher layers
-                    loss = loss + torch.sum(torch.abs(self.err_units[lyr].TD_err))*lambda2**(lyr)
+                    loss += torch.sum(torch.abs(self.err_units[lyr].TD_err))*lambda2**(lyr)
+                
+                # We can also do it in the manner specified on the powerpoint
+                # loss += torch.sum(torch.abs(self.err_units[lyr].TD_err))
         return loss
 
     def init_vars(self):
