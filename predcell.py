@@ -131,3 +131,32 @@ class PredCell(nn.Module):
             st_unit.init_vars()
             err_unit.init_vars()
 
+
+if __name__ == "__main__":
+    state_unit = StateUnit(1, 5, 5)
+    error_unit = ErrorUnit(1, 5, 5)
+
+    print(len(list(state_unit.parameters())))
+
+    v_params = list(state_unit.V.parameters())
+    params = v_params + list(state_unit.LSTM_.parameters())
+    print(len(params))
+
+    print(v_params[0])
+    print(v_params[1])
+
+    print()
+
+    print(state_unit.V.weight)
+    print(state_unit.V.bias)
+
+    print()
+
+    print(state_unit.V.bias)
+    print(state_unit.V.weight)
+
+    # lstm = nn.LSTM(7, 4)
+    # print(len(list(lstm.parameters())))
+    # print(lstm.weight_ih_l0)
+
+    print(len(list(error_unit.parameters())))

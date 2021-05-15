@@ -9,14 +9,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 from sklearn import preprocessing
-import keras
+# import keras
+import tensorflow as tf
 import string
 import io
 import pdb
 from torch import autograd
 from torch.utils.tensorboard import SummaryWriter
 import torchvision.models
-import hiddenlayer as hl
+# import hiddenlayer as hl
 
 writer = SummaryWriter(f'runs/testPredCell/tryingout_tensorboard')
 # $tensorboard --logdir = "C:\Users\Samer Nour Eddine\Downloads\XAI\runs\testPredCell\tryingout_tensorboard"
@@ -147,7 +148,7 @@ def init_vars(predcell):
             
 
 
-path = keras.utils.get_file(
+path = tf.keras.utils.get_file(
     "nietzsche.txt", origin="https://s3.amazonaws.com/text-datasets/nietzsche.txt"
 )
 with io.open(path, encoding="utf-8") as f:
@@ -200,7 +201,7 @@ trainable_params = trainable_st_params + trainable_err_params
 
 training_loss = []
 optimizer = torch.optim.Adam(trainable_params)
-num_epochs = 3000
+num_epochs = 1
 stopcode = False
 PATH = r'C:\Users\Samer Nour Eddine\Downloads\XAI\state_dict_model_trial.pt'
 stp = False
