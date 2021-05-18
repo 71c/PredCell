@@ -18,32 +18,13 @@ class StateUnit(nn.Module):
         # Note: includes a bias
         self.V = nn.Linear(thislayer_dim, lowerlayer_dim)
         
-        ######## OLD VERSION: ########
-        # self.LSTM_ = nn.LSTM(
-        #     input_size=thislayer_dim if is_top_layer else 2 * thislayer_dim,
-        #     hidden_size=thislayer_dim)
-        ######## NEW, CORRECTED VERSION: ########
         self.LSTM_ = nn.LSTMCell(
             input_size=thislayer_dim if is_top_layer else 2 * thislayer_dim,
             hidden_size=thislayer_dim)
 
     def forward(self, BU_err, TD_err):
         self.timestep += 1
-        
-        ######## OLD VERSION: ########
-        # if self.is_top_layer:
-        #     tmp = torch.unsqueeze(BU_err,0)
-        #     tmp = torch.unsqueeze(tmp, 0)
-        #     #tmp = torch.tensor(tmp, dtype = torch.float32)
-        #     temp, _ = self.LSTM_(tmp)
-        #     self.state = torch.squeeze(temp)
-        # else:
-        #     tmp = torch.unsqueeze(torch.cat((BU_err, TD_err), axis = 0),0)
-        #     tmp = torch.unsqueeze(tmp, 0)
-        #     #tmp = torch.tensor(tmp, dtype = torch.float32)
-        #     temp, _ = self.LSTM_(tmp)
-        #     self.state = torch.squeeze(temp)
-        ######## NEW, CORRECTED VERSION: ########
+
         if self.is_top_layer:
             input = torch.unsqueeze(BU_err, 0) # make it so there is 1 batch
         else:
@@ -53,8 +34,6 @@ class StateUnit(nn.Module):
         h_1, c_1 = self.LSTM_(input, (h_0, c_0))
         self.state = torch.squeeze(h_1) # remove batch
         self.cell_state = torch.squeeze(c_1) # remove batch
-
-
 
         self.recon = self.V(self.state)
 
@@ -150,7 +129,7 @@ class PredCells(nn.Module):
                     # assign a bit less importance to higher layers
                     loss += torch.sum(torch.abs(self.err_units[lyr].TD_err))*lambda2**(lyr)
                 
-                # We can also do it in the manner specified on the powerpoint
+                # We can also do it in the simple manner specified on the powerpoint
                 # loss += torch.sum(torch.abs(self.err_units[lyr].TD_err))
         return loss
 

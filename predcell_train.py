@@ -49,7 +49,7 @@ predcell = PredCells(3, maxlen, 128, n_chars)
 trainable_st_params = [p for model in predcell.st_units for p in model.parameters() if p.requires_grad]
 trainable_err_params = [p for model in predcell.err_units for p in model.parameters() if p.requires_grad]
 
-
+# Get all the parameters along with their associated names.
 names_and_params = []
 for lyr, (st_unit, err_unit) in enumerate(zip(predcell.st_units, predcell.err_units)):
     names_and_params.append((f'st_units[{lyr}].V.weight', st_unit.V.weight))
@@ -68,10 +68,6 @@ for lyr, (st_unit, err_unit) in enumerate(zip(predcell.st_units, predcell.err_un
 
     names_and_params.append((f'err_units[{lyr}].W.weight', err_unit.W.weight))
     names_and_params.append((f'err_units[{lyr}].W.bias', err_unit.W.bias))
-
-
-# print(list(zip(*names_and_params))[0])
-
 
 def check_st_grads(pc):
     for idx, model in enumerate(pc.st_units):
@@ -95,6 +91,7 @@ trainable_params = trainable_st_params + trainable_err_params
 training_loss = []
 optimizer = torch.optim.Adam(trainable_params)
 num_epochs = 5
+#### I removed a variable called stopcode because it is not used
 PATH = r'C:\Users\Samer Nour Eddine\Downloads\XAI\state_dict_model_trial.pt'
 stp = False
 step = 0
@@ -134,9 +131,8 @@ for epoch in range(num_epochs):
         optimizer.zero_grad()
         training_loss.append(loss.detach().item())
         if training_loss[-1] < 2: 
-            stp = True           ##### What are you doing here??? #######
+            stp = True           ##### Not sure what this stuff is for....
 
         writer.add_scalar('Training Loss', loss, global_step=step)
         step += 1
         print("processed sentence number {} in epoch {} with loss {}".format(idx, epoch, training_loss[-1]))
-debug = 0
