@@ -4,7 +4,7 @@ import io
 import numpy as np
 
 from torch.utils.tensorboard import SummaryWriter
-writer = SummaryWriter('runs/run8')
+writer = SummaryWriter('runs/run12')
 # $tensorboard --logdir "runs"
 # run something like the above command in a terminal, then navigate to http://localhost:6006 to see the Tensorboard visualization
 # have a different run folder for different runs of your program
@@ -44,7 +44,7 @@ for i, sentence in enumerate(sentences):
 # note that this means that y[i] == x[i+1][-3]
 
 # PredCells(num_layers, total_timesteps, hidden_dim)
-predcell = PredCells(3, maxlen, 128, n_chars)
+predcell = PredCells(2, maxlen, 128, n_chars)
 
 trainable_st_params = [p for model in predcell.st_units for p in model.parameters() if p.requires_grad]
 trainable_err_params = [p for model in predcell.err_units for p in model.parameters() if p.requires_grad]
@@ -69,19 +69,6 @@ for lyr, (st_unit, err_unit) in enumerate(zip(predcell.st_units, predcell.err_un
     names_and_params.append((f'err_units[{lyr}].W.weight', err_unit.W.weight))
     names_and_params.append((f'err_units[{lyr}].W.bias', err_unit.W.bias))
 
-def check_st_grads(pc):
-    for idx, model in enumerate(pc.st_units):
-        for p in model.parameters():
-            if p.grad == None:
-                print("no grad found for state layer {}".format(idx))
-
-
-def check_err_grads(pc):
-    for idx, model in enumerate(pc.err_units):
-        for p in model.parameters():
-            if p.grad == None:
-                print("no grad found for error layer {}".format(idx))
-
 
 trainable_params = trainable_st_params + trainable_err_params
 
@@ -89,18 +76,22 @@ trainable_params = trainable_st_params + trainable_err_params
 # print(predcell.st_units[0].V.weight)
 
 training_loss = []
-optimizer = torch.optim.Adam(trainable_params)
-num_epochs = 5
+optimizer = torch.optim.Adam(trainable_params, lr=0.00004)
+num_epochs = 10
 #### I removed a variable called stopcode because it is not used
 PATH = r'C:\Users\Samer Nour Eddine\Downloads\XAI\state_dict_model_trial.pt'
 stp = False
 step = 0
 
+
+
 for epoch in range(num_epochs):
     for idx, sentence in enumerate(x[:100]):
-        # init_vars(predcell)
         predcell.init_vars()
         loss = predcell.forward(sentence, epoch)
+
+        # print(predcell.st_units[1].recon)
+        # print(predcell.st_units[0].state)
 
         loss.retain_grad()
         # writer.add_graph(predcell.st_units)
@@ -121,18 +112,29 @@ for epoch in range(num_epochs):
             else:
                 writer.add_histogram(param_name+'.grad', param.grad, global_step=step)
 
-        # for i, param in enumerate(trainable_err_params[:-2]):
-        #     writer.add_histogram('error_weights'+str(i), param, global_step=step)
-        #     writer.add_histogram('error_grads'+str(i), param.grad, global_step=step)
-        # for i, param in enumerate(trainable_st_params[6:]):
-        #     writer.add_histogram('st_weights'+str(6+i), param, global_step=step)
-        #     writer.add_histogram('st_grads'+str(6+i), param.grad, global_step=step)
 
         optimizer.zero_grad()
         training_loss.append(loss.detach().item())
         if training_loss[-1] < 2: 
             stp = True           ##### Not sure what this stuff is for....
+        
+        for lyr in range(predcell.num_layers):
+            lyr_loss = torch.sum(torch.abs(predcell.err_units[lyr].TD_err))
+            writer.add_scalar(f'Layer loss {lyr}', lyr_loss, global_step=step)
 
         writer.add_scalar('Training Loss', loss, global_step=step)
         step += 1
         print("processed sentence number {} in epoch {} with loss {}".format(idx, epoch, training_loss[-1]))
+
+
+# torch.save(predcell, "predcell_after_train_2")
+
+
+# predcell = torch.load("predcell_after_train_2")
+# sentence = x[0]
+# predcell.init_vars()
+# predcell.forward(sentence, 2000)
+# print(predcell.st_units[1].recon)
+# print(predcell.st_units[0].state)
+
+# print(y[0])

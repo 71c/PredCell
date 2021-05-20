@@ -1,3 +1,5 @@
 runs/
 venv/
 *.zip
+predcell_after_train
+predcell_after_train_2

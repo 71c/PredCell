@@ -37,6 +37,9 @@ class StateUnit(nn.Module):
 
         self.recon = self.V(self.state)
 
+        # if self.layer_level == 1:
+        #     self.recon = nn.functional.softmax(self.recon)
+
     def set_state(self, input_char):
         self.state = input_char
 
@@ -87,15 +90,16 @@ class PredCells(nn.Module):
             if lyr == 0:
                 self.st_units.append(StateUnit(lyr, numchars, numchars))
                 self.err_units.append(ErrorUnit(lyr, numchars, hidden_dim))
-            elif lyr < self.num_layers - 1 and lyr > 0:
+            elif lyr == self.num_layers - 1:
+                self.st_units.append(StateUnit(lyr, hidden_dim, hidden_dim if lyr != 1 else numchars, is_top_layer=True))
+                self.err_units.append(ErrorUnit(lyr, hidden_dim, hidden_dim))
+            else:
                 if lyr == 1:
                     self.st_units.append(StateUnit(lyr, hidden_dim, numchars))
                 else:
                     self.st_units.append(StateUnit(lyr, hidden_dim, hidden_dim))
                 self.err_units.append(ErrorUnit(lyr, hidden_dim, hidden_dim))
-            else:
-                self.st_units.append(StateUnit(lyr, hidden_dim, hidden_dim, is_top_layer=True))
-                self.err_units.append(ErrorUnit(lyr, hidden_dim, hidden_dim))
+
 
     def forward(self, input_sentence, iternumber):
         loss = 0
@@ -128,7 +132,10 @@ class PredCells(nn.Module):
                 if iternumber > 1000:
                     # assign a bit less importance to higher layers
                     loss += torch.sum(torch.abs(self.err_units[lyr].TD_err))*lambda2**(lyr)
-                
+
+                # if lyr == 0:
+                #     loss += torch.sum(torch.abs(self.err_units[lyr].TD_err))
+
                 # We can also do it in the simple manner specified on the powerpoint
                 # loss += torch.sum(torch.abs(self.err_units[lyr].TD_err))
         return loss
