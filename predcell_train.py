@@ -41,10 +41,9 @@ for i, sentence in enumerate(sentences):
         x[i, t, char_indices[char]] = 1
     y[i, char_indices[next_chars[i]]] = 1
 
-# note that this means that y[i] == x[i+1][-3]
 
 # PredCells(num_layers, total_timesteps, hidden_dim)
-predcell = PredCells(2, maxlen, 128, n_chars)
+predcell = PredCells(3, maxlen, 128, n_chars)
 
 trainable_st_params = [p for model in predcell.st_units for p in model.parameters() if p.requires_grad]
 trainable_err_params = [p for model in predcell.err_units for p in model.parameters() if p.requires_grad]
@@ -72,13 +71,9 @@ for lyr, (st_unit, err_unit) in enumerate(zip(predcell.st_units, predcell.err_un
 
 trainable_params = trainable_st_params + trainable_err_params
 
-# print(trainable_st_params[0])
-# print(predcell.st_units[0].V.weight)
-
 training_loss = []
 optimizer = torch.optim.Adam(trainable_params, lr=0.00004)
 num_epochs = 10
-#### I removed a variable called stopcode because it is not used
 PATH = r'C:\Users\Samer Nour Eddine\Downloads\XAI\state_dict_model_trial.pt'
 stp = False
 step = 0
@@ -90,15 +85,10 @@ for epoch in range(num_epochs):
         predcell.init_vars()
         loss = predcell.forward(sentence, epoch)
 
-        # print(predcell.st_units[1].recon)
-        # print(predcell.st_units[0].state)
-
         loss.retain_grad()
         # writer.add_graph(predcell.st_units)
         loss.backward()
 
-        # check_st_grads(predcell)
-        # check_err_grads(predcell)
         if epoch == 10:
             pass
         torch.nn.utils.clip_grad_norm(trainable_params, max_norm=1)
