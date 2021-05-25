@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class StateUnit(nn.Module):
@@ -17,14 +18,15 @@ class StateUnit(nn.Module):
         # maps from this layer to the lower layer
         # Note: includes a bias
         self.V = nn.Linear(thislayer_dim, lowerlayer_dim)
-        
+        # print(self.V.data)
+        self.V.weight.data = torch.randn(self.V.weight.size())
+
         self.LSTM_ = nn.LSTMCell(
             input_size=thislayer_dim if is_top_layer else 2 * thislayer_dim,
             hidden_size=thislayer_dim)
 
     def forward(self, BU_err, TD_err):
         self.timestep += 1
-
         if self.is_top_layer:
             input = torch.unsqueeze(BU_err, 0) # make it so there is 1 batch
         else:
@@ -33,9 +35,14 @@ class StateUnit(nn.Module):
         c_0 = torch.unsqueeze(self.cell_state, 0) # make 1 batch
         h_1, c_1 = self.LSTM_(input, (h_0, c_0))
         self.state = torch.squeeze(h_1) # remove batch
+        # if self.layer_level == 1:
+            # print(self.state.size(), self.recon.size())
         self.cell_state = torch.squeeze(c_1) # remove batch
 
         self.recon = self.V(self.state)
+
+        if self.layer_level == 1:
+            self.recon = F.softmax(self.recon, dim=0)
 
         # if self.layer_level == 1:
         #     self.recon = nn.functional.softmax(self.recon)
@@ -49,7 +56,9 @@ class StateUnit(nn.Module):
         self.state = torch.zeros(self.thislayer_dim, dtype=torch.float32)
         self.cell_state = torch.zeros(self.thislayer_dim, dtype=torch.float32)
         # reconstructions at all other time points will be determined by the state
-        self.recon = torch.zeros(self.lowerlayer_dim, dtype=torch.float32)
+        self.recon = torch.randn(self.lowerlayer_dim, dtype=torch.float32)
+        if self.layer_level == 1:
+            self.recon = F.softmax(self.recon, dim=0)
 
 
 class ErrorUnit(nn.Module):
@@ -63,12 +72,29 @@ class ErrorUnit(nn.Module):
 
         self.W = nn.Linear(thislayer_dim, higherlayer_dim)  # maps up to the next layer
 
-    def forward(self, state_, recon_):
+    def forward(self, state, recon):
         self.timestep += 1
-        #self.TD_err = torch.abs(state_ - recon_)
-        self.TD_err = state_ - recon_
+        if self.layer_level == 0:
+            # print(recon)
+            # # print(state)
+            # print(torch.unsqueeze(recon, 0).size())
+            # print(torch.unsqueeze(state, 0).size())
+            # self.TD_err = F.nll_loss(torch.unsqueeze(recon, 0), torch.unsqueeze(state, 0), reduce=False, reduction='none')
+            # print(self.TD_err)
+            # print(self.TD_err.size())
+
+            # state_one_hot = F.one_hot(state, num_classes=56)
+
+            u = state * torch.log(recon) + (1 - state) * torch.log(1 - recon)
+
+            self.TD_err = -u 
+
+            # print(self.TD_err)
+
+        else:
+            self.TD_err = state - recon
         self.BU_err = self.W(self.TD_err.float())
-    
+
     def init_vars(self):
         '''Sets TD_err and BU_err to zero, and set timestep to 0'''
         self.timestep = 0
@@ -108,37 +134,43 @@ class PredCells(nn.Module):
         if iternumber == 2990:
             pass
             stp = 0
+        predictions = []
         for t in range(self.total_timesteps):
             # input_char at each t is a one-hot character encoding
-            input_char = input_sentence[t]  # 56 dim one hot vector
-            input_char = input_char + 0.0
-            input_char = torch.from_numpy(input_char)
+            input_char = input_sentence[t]
             for lyr in range(self.num_layers):
                 if lyr == 0:
                     # set the lowest state unit value to the current character
                     self.st_units[lyr].set_state(input_char)
+                    # print(input_char)
+                    # print(input_char.size())
+                    # print(self.st_units[lyr].state.size())
                 else:
                     self.st_units[lyr].forward(self.err_units[lyr-1].BU_err, self.err_units[lyr].TD_err)
                 if lyr < self.num_layers - 1:
                     self.err_units[lyr].forward(self.st_units[lyr].state, self.st_units[lyr+1].recon)
                 else:
                     pass
+
+                predictions.append(self.st_units[1].recon)
                 
                 # Update Loss
 
-                if iternumber <= 1000:
-                    # assign much less importance to errors at higher layers
-                    loss += torch.sum(torch.abs(self.err_units[lyr].TD_err))*(lambda1**(lyr))
-                if iternumber > 1000:
-                    # assign a bit less importance to higher layers
-                    loss += torch.sum(torch.abs(self.err_units[lyr].TD_err))*lambda2**(lyr)
+                # if iternumber <= 1000:
+                #     # assign much less importance to errors at higher layers
+                #     loss += torch.sum(torch.abs(self.err_units[lyr].TD_err))*(lambda1**(lyr))
+                # if iternumber > 1000:
+                #     # assign a bit less importance to higher layers
+                #     loss += torch.sum(torch.abs(self.err_units[lyr].TD_err))*lambda2**(lyr)
+
+                loss += torch.sum(torch.abs(self.err_units[lyr].TD_err)) * 0.1**lyr
 
                 # if lyr == 0:
                 #     loss += torch.sum(torch.abs(self.err_units[lyr].TD_err))
 
                 # We can also do it in the simple manner specified on the powerpoint
                 # loss += torch.sum(torch.abs(self.err_units[lyr].TD_err))
-        return loss
+        return loss, predictions
 
     def init_vars(self):
         '''Sets all states and errors to zero vectors.'''
