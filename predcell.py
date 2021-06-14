@@ -35,17 +35,12 @@ class StateUnit(nn.Module):
         c_0 = torch.unsqueeze(self.cell_state, 0) # make 1 batch
         h_1, c_1 = self.LSTM_(input, (h_0, c_0))
         self.state = torch.squeeze(h_1) # remove batch
-        # if self.layer_level == 1:
-            # print(self.state.size(), self.recon.size())
         self.cell_state = torch.squeeze(c_1) # remove batch
 
         self.recon = self.V(self.state)
 
         if self.layer_level == 1:
             self.recon = F.softmax(self.recon, dim=0)
-
-        # if self.layer_level == 1:
-        #     self.recon = nn.functional.softmax(self.recon)
 
     def set_state(self, input_char):
         self.state = input_char
@@ -68,6 +63,8 @@ class ErrorUnit(nn.Module):
         self.thislayer_dim = thislayer_dim
         self.higherlayer_dim = higherlayer_dim
 
+        self.loss = 0
+
         self.init_vars()
 
         self.W = nn.Linear(thislayer_dim, higherlayer_dim)  # maps up to the next layer
@@ -75,21 +72,12 @@ class ErrorUnit(nn.Module):
     def forward(self, state, recon):
         self.timestep += 1
         if self.layer_level == 0:
-            # print(recon)
-            # # print(state)
-            # print(torch.unsqueeze(recon, 0).size())
-            # print(torch.unsqueeze(state, 0).size())
-            # self.TD_err = F.nll_loss(torch.unsqueeze(recon, 0), torch.unsqueeze(state, 0), reduce=False, reduction='none')
-            # print(self.TD_err)
-            # print(self.TD_err.size())
-
-            # state_one_hot = F.one_hot(state, num_classes=56)
-
             u = state * torch.log(recon) + (1 - state) * torch.log(1 - recon)
 
-            self.TD_err = -u 
+            # self.TD_err = -u 
+            self.TD_err = state - recon
 
-            # print(self.TD_err)
+            self.loss = torch.sum(-u)
 
         else:
             self.TD_err = state - recon
@@ -129,8 +117,8 @@ class PredCells(nn.Module):
 
     def forward(self, input_sentence, iternumber):
         loss = 0
-        lambda1 = 0.0001
-        lambda2 = 0.01
+        first_layer_loss = 0
+        lamda = 0.05
         if iternumber == 2990:
             pass
             stp = 0
@@ -142,35 +130,25 @@ class PredCells(nn.Module):
                 if lyr == 0:
                     # set the lowest state unit value to the current character
                     self.st_units[lyr].set_state(input_char)
-                    # print(input_char)
-                    # print(input_char.size())
-                    # print(self.st_units[lyr].state.size())
                 else:
                     self.st_units[lyr].forward(self.err_units[lyr-1].BU_err, self.err_units[lyr].TD_err)
+                
                 if lyr < self.num_layers - 1:
                     self.err_units[lyr].forward(self.st_units[lyr].state, self.st_units[lyr+1].recon)
                 else:
                     pass
-
-                predictions.append(self.st_units[1].recon)
                 
                 # Update Loss
+                if lyr == 0:
+                    loss += self.err_units[lyr].loss * lamda**lyr
+                else:
+                    loss += torch.sum(torch.abs(self.err_units[lyr].TD_err)) * lamda**lyr
 
-                # if iternumber <= 1000:
-                #     # assign much less importance to errors at higher layers
-                #     loss += torch.sum(torch.abs(self.err_units[lyr].TD_err))*(lambda1**(lyr))
-                # if iternumber > 1000:
-                #     # assign a bit less importance to higher layers
-                #     loss += torch.sum(torch.abs(self.err_units[lyr].TD_err))*lambda2**(lyr)
 
-                loss += torch.sum(torch.abs(self.err_units[lyr].TD_err)) * 0.1**lyr
-
-                # if lyr == 0:
-                #     loss += torch.sum(torch.abs(self.err_units[lyr].TD_err))
-
-                # We can also do it in the simple manner specified on the powerpoint
-                # loss += torch.sum(torch.abs(self.err_units[lyr].TD_err))
-        return loss, predictions
+            first_layer_loss += self.err_units[0].loss
+            predictions.append(self.st_units[1].recon)
+        
+        return loss, first_layer_loss, predictions
 
     def init_vars(self):
         '''Sets all states and errors to zero vectors.'''

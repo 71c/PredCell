@@ -10,40 +10,6 @@ writer = SummaryWriter('runs/run15')
 # run something like the above command in a terminal, then navigate to http://localhost:6006 to see the Tensorboard visualization
 # have a different run folder for different runs of your program
 
-# path = tf.keras.utils.get_file(
-#     "nietzsche.txt", origin="https://s3.amazonaws.com/text-datasets/nietzsche.txt"
-# )
-# with io.open(path, encoding="utf-8") as f:
-#     text = f.read().lower()
-# text = text.replace("\n", " ")  # We remove newlines chars for nicer display
-# print("Corpus length:", len(text))
-# # text = text[0:50000] #reducing size to test
-
-# chars = sorted(list(set(text)))
-# n_chars = len(chars)
-# print("Total chars:", n_chars)
-# char_indices = dict((c, i) for i, c in enumerate(chars))
-# indices_char = dict((i, c) for i, c in enumerate(chars))
-
-# # cut the text in semi-redundant sequences of maxlen characters
-# maxlen = 10  # 40
-# step = 2
-# sentences = []
-# next_chars = []
-# for i in range(0, len(text) - maxlen, step):
-#     sentences.append(text[i: i + maxlen])
-#     next_chars.append(text[i + maxlen])
-# print("Number of sequences:", len(sentences))
-
-# x = np.zeros((len(sentences), maxlen, n_chars), dtype=np.bool)
-# y = np.zeros((len(sentences), n_chars), dtype=np.bool)
-# for i, sentence in enumerate(sentences):
-#     for t, char in enumerate(sentence):
-#         x[i, t, char_indices[char]] = 1
-#     y[i, char_indices[next_chars[i]]] = 1
-
-
-
 CHAR_TO_INDEX = {}
 INDEX_TO_CHAR = {}
 
@@ -147,12 +113,12 @@ step = 0
 
 for epoch in range(num_epochs):
     losses = []
-    layer_losses = [[] for _ in range(predcell.num_layers)]
-    for idx in tqdm(np.random.permutation(100)):
+    first_layer_losses = []
+    for idx in tqdm(np.random.permutation(n_examples)):
         sentence = x_onehot[idx]
     
         predcell.init_vars()
-        loss, predictions = predcell.forward(sentence, epoch)
+        loss, first_layer_loss, predictions = predcell.forward(sentence, epoch)
 
         loss.retain_grad()
         # writer.add_graph(predcell.st_units)
@@ -171,23 +137,17 @@ for epoch in range(num_epochs):
             else:
                 writer.add_histogram(param_name+'.grad', param.grad, global_step=step)
 
-
         optimizer.zero_grad()
     
         losses.append(loss.detach().item())
 
-        for lyr in range(predcell.num_layers):
-            lyr_loss = torch.sum(torch.abs(predcell.err_units[lyr].TD_err))
-            layer_losses[lyr].append(lyr_loss.detach().item())
-    
-    for lyr in range(predcell.num_layers):
-        layer_mean_loss = np.mean(layer_losses[lyr])
-        writer.add_scalar(f'Layer loss {lyr}', layer_mean_loss, global_step=epoch)
-    
+        first_layer_losses.append(first_layer_loss.detach().item())
+
     mean_loss = np.mean(losses)
+    mean_first_layer_loss = np.mean(first_layer_losses)
     writer.add_scalar('Training Loss', mean_loss, global_step=epoch)
     
-    print("processed epoch {} with loss {}".format(epoch, mean_loss))
+    print("processed epoch {} with loss {}, first layer loss {}".format(epoch, mean_loss, mean_first_layer_loss))
 
 # torch.save(predcell, "predcell_after_train_5")
 
@@ -204,7 +164,7 @@ for epoch in range(num_epochs):
 def get_predictions(model, sentence):
     x = sentences_to_indices_arr([sentence], len(sentence))
     x_onehot = torch.from_numpy(to_onehot(x, N_CHARS)[0])
-    loss, predictions = model(x_onehot, 2000)
+    loss, first_layer_loss, predictions = model(x_onehot, 2000)
     return predictions
 
 
