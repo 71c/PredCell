@@ -1,4 +1,4 @@
-''' Authors - Samer Nour Eddine (snoure01@tufts.edu), Apurva Kalia (apurva.kalia@tufts.edu)
+''' Authors - Samer Nour Eddine (snoure01@tufts.edu), Alon Jacobson (alon.jacobson@tufts.edu), Apurva Kalia (apurva.kalia@tufts.edu)
 IN PROGRESS
 '''
 '''
