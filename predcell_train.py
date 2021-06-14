@@ -129,14 +129,6 @@ for epoch in range(num_epochs):
         # torch.nn.utils.clip_grad_norm(trainable_params, max_norm=1)
         optimizer.step()
 
-        for param_name, param in names_and_params:
-            writer.add_histogram(param_name, param, global_step=step)
-            if param.grad is None:
-                # print(f"No grad for {param_name}")
-                pass
-            else:
-                writer.add_histogram(param_name+'.grad', param.grad, global_step=step)
-
         optimizer.zero_grad()
     
         losses.append(loss.detach().item())
@@ -145,6 +137,16 @@ for epoch in range(num_epochs):
 
     mean_loss = np.mean(losses)
     mean_first_layer_loss = np.mean(first_layer_losses)
+    
+    # Putting this in the inner loop makes it REALLY slow.
+    # for param_name, param in names_and_params:
+    #     writer.add_histogram(param_name, param, global_step=step)
+    #     if param.grad is None:
+    #         # print(f"No grad for {param_name}")
+    #         pass
+    #     else:
+    #         writer.add_histogram(param_name+'.grad', param.grad, global_step=step)
+    
     writer.add_scalar('Training Loss', mean_loss, global_step=epoch)
     
     print("processed epoch {} with loss {}, first layer loss {}".format(epoch, mean_loss, mean_first_layer_loss))
