@@ -1,4 +1,4 @@
-from predcell import *
+from predcell_log_loss import *
 from tensorflow import keras
 import io
 import numpy as np
