@@ -32,15 +32,13 @@ def sentences_to_indices_arr(sentences, maxlen):
     return x
 
 
-def get_training_data(text, maxlen, n_examples=None):
+def get_training_data(text, maxlen):
     # cut the text in semi-redundant sequences of maxlen characters
     step = 5
     sentences = []
     for i in range(0, len(text) - maxlen, step):
         sentences.append(text[i: i + maxlen])
-    n_examples = len(sentences) if n_examples is None else n_examples
-    print("Number of sequences:", n_examples)
-    return sentences_to_indices_arr(sentences[:n_examples], maxlen)
+    return sentences_to_indices_arr(sentences, maxlen)
 
 
 def to_onehot(data, n_items=None):
@@ -63,12 +61,28 @@ print("Total chars:", N_CHARS)
 
 ### Get training data
 maxlen = 10
-n_examples = 100
-x = get_training_data(text, maxlen, n_examples)
-x_onehot = to_onehot(x, N_CHARS)
 
-x = torch.from_numpy(x)
-x_onehot = torch.from_numpy(x_onehot)
+train_nchars = 500
+test_nchars = 200
+
+train_text = text[:train_nchars]
+x_train = get_training_data(train_text, maxlen)
+x_train_onehot = to_onehot(x_train, N_CHARS)
+x_train = torch.from_numpy(x_train)
+x_train_onehot = torch.from_numpy(x_train_onehot)
+
+test_text = text[train_nchars:train_nchars+test_nchars]
+x_test = get_training_data(test_text, maxlen)
+x_test_onehot = to_onehot(x_test, N_CHARS)
+x_test = torch.from_numpy(x_test)
+x_test_onehot = torch.from_numpy(x_test_onehot)
+
+n_train_sequences = len(x_train)
+n_test_sequences = len(x_test)
+
+print(f"Training data has {len(train_text)} characters and {n_train_sequences} sequences")
+print(f"Testing data has {len(test_text)} characters and {n_test_sequences} sequences")
+
 
 
 # PredCells(num_layers, total_timesteps, hidden_dim)
@@ -112,10 +126,12 @@ step = 0
 
 
 for epoch in range(num_epochs):
-    losses = []
-    first_layer_losses = []
-    for idx in tqdm(np.random.permutation(n_examples)):
-        sentence = x_onehot[idx]
+
+    # Train
+    train_losses = []
+    first_layer_train_losses = []
+    for idx in tqdm(np.random.permutation(n_train_sequences)):
+        sentence = x_train_onehot[idx]
     
         predcell.init_vars()
         loss, first_layer_loss, predictions = predcell.forward(sentence, epoch)
@@ -124,19 +140,34 @@ for epoch in range(num_epochs):
         # writer.add_graph(predcell.st_units)
         loss.backward()
 
-        if epoch == 10:
-            pass
-        # torch.nn.utils.clip_grad_norm(trainable_params, max_norm=1)
         optimizer.step()
 
         optimizer.zero_grad()
     
-        losses.append(loss.detach().item())
+        train_losses.append(loss.detach().item())
 
-        first_layer_losses.append(first_layer_loss.detach().item())
+        first_layer_train_losses.append(first_layer_loss.detach().item())
 
-    mean_loss = np.mean(losses)
-    mean_first_layer_loss = np.mean(first_layer_losses)
+    mean_train_loss = np.mean(train_losses)
+    mean_first_layer_train_loss = np.mean(first_layer_train_losses)
+
+
+    # Test
+    test_losses = []
+    first_layer_test_losses = []
+    for idx in range(n_test_sequences):
+        sentence = x_test_onehot[idx]
+    
+        predcell.init_vars()
+        loss, first_layer_loss, predictions = predcell.forward(sentence, epoch)
+    
+        test_losses.append(loss.detach().item())
+        first_layer_test_losses.append(first_layer_loss.detach().item())
+
+    mean_test_loss = np.mean(test_losses)
+    mean_first_layer_test_loss = np.mean(first_layer_test_losses)
+
+
     
     # Putting this in the inner loop makes it REALLY slow.
     # for param_name, param in names_and_params:
@@ -147,20 +178,13 @@ for epoch in range(num_epochs):
     #     else:
     #         writer.add_histogram(param_name+'.grad', param.grad, global_step=step)
     
-    writer.add_scalar('Training Loss', mean_loss, global_step=epoch)
+    # writer.add_scalar('Training Loss', mean_train_loss, global_step=epoch)
     
-    print("processed epoch {} with loss {}, first layer loss {}".format(epoch, mean_loss, mean_first_layer_loss))
+    # print(f"processed epoch {epoch}. loss: {mean_train_loss:.5g} train, {mean_test_loss:.5g} test; first layer loss: {mean_first_layer_train_loss:.5g} train, {mean_first_layer_test_loss:.5g} test")
+    print(f"processed epoch {epoch}. Train: {mean_train_loss:.5g} Train layer1: {mean_first_layer_train_loss:.5g} Test: {mean_test_loss:.5g} Test layer1: {mean_first_layer_test_loss:.5g}")
 
 # torch.save(predcell, "predcell_after_train_5")
 
-
-
-
-# sentence = x_onehot[0]
-# predcell.init_vars()
-# predcell.forward(sentence, 2000)
-# print(predcell.st_units[1].recon)
-# print(predcell.st_units[0].state)
 
 
 def get_predictions(model, sentence):
