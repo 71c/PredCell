@@ -1,11 +1,11 @@
-from predcell_log_loss import *
+from predcell_divisive import *
 from tensorflow import keras
 import io
 import numpy as np
 from tqdm import tqdm
 
 from torch.utils.tensorboard import SummaryWriter
-writer = SummaryWriter('runs/run15')
+writer = SummaryWriter('runs/runSam')
 # $tensorboard --logdir "runs"
 # run something like the above command in a terminal, then navigate to http://localhost:6006 to see the Tensorboard visualization
 # have a different run folder for different runs of your program
@@ -118,7 +118,7 @@ for lyr, (st_unit, err_unit) in enumerate(zip(predcell.st_units, predcell.err_un
 trainable_params = trainable_st_params + trainable_err_params
 
 optimizer = torch.optim.Adam(trainable_params, lr=0.0008)
-num_epochs = 7
+num_epochs = 10
 PATH = r'C:\Users\Samer Nour Eddine\Downloads\XAI\state_dict_model_trial.pt'
 stp = False
 step = 0
@@ -142,11 +142,22 @@ for epoch in range(num_epochs):
 
         optimizer.step()
 
+        # Putting this in makes it REALLY slow.
+        for param_name, param in names_and_params:
+            writer.add_histogram(param_name, param, global_step=epoch)
+            if param.grad is None:
+                # print(f"No grad for {param_name}")
+                pass
+            else:
+                writer.add_histogram(param_name+'.grad', param.grad, global_step=epoch)
+
         optimizer.zero_grad()
     
         train_losses.append(loss.detach().item())
 
         first_layer_train_losses.append(first_layer_loss.detach().item())
+
+        
 
     mean_train_loss = np.mean(train_losses)
     mean_first_layer_train_loss = np.mean(first_layer_train_losses)
@@ -167,18 +178,10 @@ for epoch in range(num_epochs):
     mean_test_loss = np.mean(test_losses)
     mean_first_layer_test_loss = np.mean(first_layer_test_losses)
 
-
-    
-    # Putting this in the inner loop makes it REALLY slow.
-    # for param_name, param in names_and_params:
-    #     writer.add_histogram(param_name, param, global_step=step)
-    #     if param.grad is None:
-    #         # print(f"No grad for {param_name}")
-    #         pass
-    #     else:
-    #         writer.add_histogram(param_name+'.grad', param.grad, global_step=step)
-    
-    # writer.add_scalar('Training Loss', mean_train_loss, global_step=epoch)
+    writer.add_scalar('Training Loss', mean_train_loss, global_step=epoch)
+    writer.add_scalar('Testing Loss', mean_test_loss, global_step=epoch)
+    writer.add_scalar('Training Loss Layer 1', mean_first_layer_train_loss, global_step=epoch)
+    writer.add_scalar('Testing Loss Layer 1', mean_first_layer_test_loss, global_step=epoch)
     
     # print(f"processed epoch {epoch}. loss: {mean_train_loss:.5g} train, {mean_test_loss:.5g} test; first layer loss: {mean_first_layer_train_loss:.5g} train, {mean_first_layer_test_loss:.5g} test")
     print(f"processed epoch {epoch}. Train: {mean_train_loss:.5g} Train layer1: {mean_first_layer_train_loss:.5g} Test: {mean_test_loss:.5g} Test layer1: {mean_first_layer_test_loss:.5g}")
@@ -203,6 +206,7 @@ def show_top_predictions(probs, n_top):
 
 
 input_text = "this is a test"
+predcell.init_vars()
 predictions = get_predictions(predcell, input_text)
 for c, probs in zip(input_text, predictions):
     print(f"Character: {c}")
