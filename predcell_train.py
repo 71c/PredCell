@@ -60,12 +60,13 @@ INDEX_TO_CHAR = {i: c for i, c in enumerate(chars)}
 print("Total chars:", N_CHARS)
 
 ### Get training data
-maxlen = 10
+maxlen = len("the quick brown fox jumps over the lazy dog ")
 
 train_nchars = 500
 test_nchars = 200
 
-train_text = text[:train_nchars]
+#train_text = text[:train_nchars]
+train_text = ("the quick brown fox jumps over the lazy dog "*100)[:train_nchars]
 x_train = get_training_data(train_text, maxlen)
 x_train_onehot = to_onehot(x_train, N_CHARS)
 x_train = torch.from_numpy(x_train)
@@ -86,7 +87,8 @@ print(f"Testing data has {len(test_text)} characters and {n_test_sequences} sequ
 
 
 # PredCells(num_layers, total_timesteps, hidden_dim)
-predcell = PredCells(3, maxlen, 128, N_CHARS)
+num_lstms = input("How many stacked LSTMs to train (1 or 2)? \n")
+predcell = PredCells(int(num_lstms) + 1, maxlen, 128, N_CHARS)
 
 # predcell = torch.load("predcell_after_train_3")
 
@@ -117,10 +119,9 @@ for lyr, (st_unit, err_unit) in enumerate(zip(predcell.st_units, predcell.err_un
 
 trainable_params = trainable_st_params + trainable_err_params
 
-optimizer = torch.optim.Adam(trainable_params, lr=0.0008)
-num_epochs = 7
-PATH = r'C:\Users\Samer Nour Eddine\Downloads\XAI\state_dict_model_trial.pt'
-stp = False
+optimizer = torch.optim.Adam(trainable_params, lr=8e-4)
+num_epochs = 5
+#PATH = r'C:\Users\Samer Nour Eddine\Downloads\XAI\state_dict_model_trial.pt'
 step = 0
 
 
@@ -190,7 +191,7 @@ for epoch in range(num_epochs):
 def get_predictions(model, sentence):
     x = sentences_to_indices_arr([sentence], len(sentence))
     x_onehot = torch.from_numpy(to_onehot(x, N_CHARS)[0])
-    loss, first_layer_loss, predictions = model(x_onehot, 2000)
+    loss, first_layer_loss, predictions = model(x_onehot)
     return predictions
 
 
@@ -202,7 +203,8 @@ def show_top_predictions(probs, n_top):
     return sorted(chars_and_probs, key=lambda x: x[1], reverse=True)[:n_top]
 
 
-input_text = "this is a test"
+input_text = "the quick brown"
+predcell.init_vars()
 predictions = get_predictions(predcell, input_text)
 for c, probs in zip(input_text, predictions):
     print(f"Character: {c}")
