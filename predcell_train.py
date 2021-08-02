@@ -144,8 +144,8 @@ for epoch in range(num_epochs):
             print('>> Training layer 2, freezing layer 3 <<')
 
             # Enable/disable the losses
-            predcell.layer_losses_enabled[0] = True # Enable loss of the bottom layer
-            predcell.layer_losses_enabled[1] = False # Enable the loss of the second layer
+            predcell.layer_losses_enabled[0] = True
+            predcell.layer_losses_enabled[1] = False
 
             # Enable/disable training
             predcell.enable_layer_training(1)
@@ -155,8 +155,8 @@ for epoch in range(num_epochs):
             print('>> Training layer 3, freezing layer 2 <<')
 
             # Enable/disable the losses
-            predcell.layer_losses_enabled[0] = False # Enable loss of the bottom layer
-            predcell.layer_losses_enabled[1] = True # Enable the loss of the second layer
+            predcell.layer_losses_enabled[0] = False
+            predcell.layer_losses_enabled[1] = True
 
             # Enable/disable training
             predcell.disable_layer_training(1)
