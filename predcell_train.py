@@ -1,11 +1,11 @@
-from predcell_divisive import *
+from predcell_subtractive_relu import *
 from tensorflow import keras
 import io
 import numpy as np
 from tqdm import tqdm
 
 from torch.utils.tensorboard import SummaryWriter
-writer = SummaryWriter('runs/runSam')
+writer = SummaryWriter('runs/runSubtractivereluOneLayerPangram2')
 # $tensorboard --logdir "runs"
 # run something like the above command in a terminal, then navigate to http://localhost:6006 to see the Tensorboard visualization
 # have a different run folder for different runs of your program
@@ -65,6 +65,8 @@ maxlen = 10
 train_nchars = 500
 test_nchars = 200
 
+text = 'the quick brown fox jumps over a lazy dog. ' * 500 
+
 train_text = text[:train_nchars]
 x_train = get_training_data(train_text, maxlen)
 x_train_onehot = to_onehot(x_train, N_CHARS)
@@ -86,7 +88,7 @@ print(f"Testing data has {len(test_text)} characters and {n_test_sequences} sequ
 
 
 # PredCells(num_layers, total_timesteps, hidden_dim)
-predcell = PredCells(3, maxlen, 128, N_CHARS)
+predcell = PredCells(2, maxlen, 128, N_CHARS)
 
 # predcell = torch.load("predcell_after_train_3")
 
@@ -205,12 +207,18 @@ def show_top_predictions(probs, n_top):
     return sorted(chars_and_probs, key=lambda x: x[1], reverse=True)[:n_top]
 
 
-input_text = "this is a test"
-predcell.init_vars()
-predictions = get_predictions(predcell, input_text)
-for c, probs in zip(input_text, predictions):
-    print(f"Character: {c}")
-    print("Predictions:")
-    top_predictions = show_top_predictions(probs, 5)
-    for c, p in top_predictions:
-        print(f"\t{c}\t{p:.6g}")
+def show_predictions(input_text):
+    predcell.init_vars()
+    predictions = get_predictions(predcell, input_text)
+    for c, probs in zip(input_text, predictions):
+        print(f"Character: {c}")
+        print("Predictions:")
+        top_predictions = show_top_predictions(probs, 5)
+        for c, p in top_predictions:
+            print(f"\t{c}\t{p:.6g}")
+
+
+show_predictions("the quick brown fox jumps over a lazy dog.")
+print()
+show_predictions("this is a test")
+
