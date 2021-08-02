@@ -87,8 +87,8 @@ print(f"Testing data has {len(test_text)} characters and {n_test_sequences} sequ
 
 
 # PredCells(num_layers, total_timesteps, hidden_dim)
-num_lstms = input("How many stacked LSTMs to train (1 or 2)? \n")
-predcell = PredCells(int(num_lstms) + 1, maxlen, 128, N_CHARS)
+num_lstms = int(input("How many stacked LSTMs to train (1 or 2)? \n"))
+predcell = PredCells(num_lstms + 1, maxlen, 128, N_CHARS)
 
 # predcell = torch.load("predcell_after_train_3")
 
@@ -120,13 +120,47 @@ for lyr, (st_unit, err_unit) in enumerate(zip(predcell.st_units, predcell.err_un
 trainable_params = trainable_st_params + trainable_err_params
 
 optimizer = torch.optim.Adam(trainable_params, lr=8e-4)
-num_epochs = 5
+num_epochs = 3
 #PATH = r'C:\Users\Samer Nour Eddine\Downloads\XAI\state_dict_model_trial.pt'
 step = 0
 
 
+### Periodic training setup
+# Set cycle length for periodic training
+cycle_length = 2
+PERIODIC_TRAINING_ENABLED = True # only works if num_lstms == 2
+
+if PERIODIC_TRAINING_ENABLED and num_lstms != 2:
+    raise RuntimeError('Periodic training is meant for a 2 layer model.')
+
+if PERIODIC_TRAINING_ENABLED:
+    print(f"Periodic training enabled. Switches every {cycle_length} epochs.")
 
 for epoch in range(num_epochs):
+    if PERIODIC_TRAINING_ENABLED:
+        cycle = epoch % (2 * cycle_length)
+        if cycle == 0:
+            # Train 2, freeze 3
+            print('>> Training layer 2, freezing layer 3 <<')
+
+            # Enable/disable the losses
+            predcell.layer_losses_enabled[0] = True # Enable loss of the bottom layer
+            predcell.layer_losses_enabled[1] = False # Enable the loss of the second layer
+
+            # Enable/disable training
+            predcell.enable_layer_training(1)
+            predcell.disable_layer_training(2)
+        elif cycle == cycle_length:
+            # Train 3, freeze 2
+            print('>> Training layer 3, freezing layer 2 <<')
+
+            # Enable/disable the losses
+            predcell.layer_losses_enabled[0] = False # Enable loss of the bottom layer
+            predcell.layer_losses_enabled[1] = True # Enable the loss of the second layer
+
+            # Enable/disable training
+            predcell.disable_layer_training(1)
+            predcell.enable_layer_training(2)
 
     # Train
     train_losses = []
@@ -137,20 +171,21 @@ for epoch in range(num_epochs):
         predcell.init_vars()
         loss, first_layer_loss, predictions = predcell.forward(sentence, epoch)
 
-        loss.retain_grad()
+        # loss.retain_grad() # Is this necessary?
+    
         # writer.add_graph(predcell.st_units)
         loss.backward()
 
         optimizer.step()
 
         # Putting this in makes it REALLY slow.
-        for param_name, param in names_and_params:
-            writer.add_histogram(param_name, param, global_step=epoch)
-            if param.grad is None:
-                # print(f"No grad for {param_name}")
-                pass
-            else:
-                writer.add_histogram(param_name+'.grad', param.grad, global_step=epoch)
+        # for param_name, param in names_and_params:
+        #     writer.add_histogram(param_name, param, global_step=epoch)
+        #     if param.grad is None:
+        #         # print(f"No grad for {param_name}")
+        #         pass
+        #     else:
+        #         writer.add_histogram(param_name+'.grad', param.grad, global_step=epoch)
 
         optimizer.zero_grad()
     

@@ -21,6 +21,10 @@ class StateUnit(nn.Module):
         self.LSTM_ = nn.LSTMCell(
             input_size=thislayer_dim if is_top_layer else 3 * thislayer_dim,
             hidden_size=thislayer_dim)
+        
+        # Add extra attribute to each parameter for use in enabling/disabling training
+        for p in self.parameters():
+            p.initially_requires_grad = p.requires_grad
 
     def forward(self, BU_err, TD_err):
         self.timestep += 1
@@ -50,6 +54,16 @@ class StateUnit(nn.Module):
         self.cell_state = torch.zeros(self.thislayer_dim, dtype=torch.float32)
         # reconstructions at all other time points will be determined by the state
         self.recon = torch.zeros(self.lowerlayer_dim, dtype=torch.float32)
+    
+    def enable_training(self):
+        for p in self.parameters():
+            if p.initially_requires_grad:
+                p.requires_grad = True
+    
+    def disable_training(self):
+        for p in self.parameters():
+            if p.initially_requires_grad:
+                p.requires_grad = False
 
 
 class ErrorUnit(nn.Module):
@@ -63,6 +77,11 @@ class ErrorUnit(nn.Module):
 
         self.W = nn.Linear(thislayer_dim*2, higherlayer_dim)  # maps up to the next layer
         self.relu = nn.ReLU()
+
+        # Add extra attribute to each parameter for use in enabling/disabling training
+        for p in self.parameters():
+            p.initially_requires_grad = p.requires_grad
+
     def forward(self, state, recon):
         self.timestep += 1
         #self.TD_err = torch.abs(state - recon)
@@ -75,6 +94,16 @@ class ErrorUnit(nn.Module):
         self.TD_err = torch.zeros(self.thislayer_dim*2, dtype=torch.float32)
         # it shouldn't matter what we initialize this to; it will be determined by TD_err in all other iterations
         self.BU_err = torch.zeros(self.higherlayer_dim, dtype=torch.float32)
+    
+    def enable_training(self):
+        for p in self.parameters():
+            if p.initially_requires_grad:
+                p.requires_grad = True
+    
+    def disable_training(self):
+        for p in self.parameters():
+            if p.initially_requires_grad:
+                p.requires_grad = False
 
 
 class PredCells(nn.Module):
@@ -99,12 +128,18 @@ class PredCells(nn.Module):
                 else:
                     self.st_units.append(StateUnit(lyr, hidden_dim, hidden_dim))
                 self.err_units.append(ErrorUnit(lyr, hidden_dim, hidden_dim))
-
+        
+        # Element number i indicates whether the TD error of the i'th ErrorUnit contributes to the loss function.
+        # There are self.num_layers - 1, rather than self.num_layers, items in this list because the top/last layer's TD error is always 0s';
+        # basically it doesn't really have a TD error.
+        self.layer_losses_enabled = [True for lyr in range(self.num_layers - 1)]
 
     def forward(self, input_sentence, iternumber= 1e10):
         loss = 0
         first_layer_loss = 0
         predictions = []
+
+        # print(self.err_units[self.num_layers - 1].W.weight) # This should be constant.
 
         for t in range(min(self.total_timesteps, len(input_sentence))):
             # input_char at each t is a one-hot character encoding
@@ -123,7 +158,13 @@ class PredCells(nn.Module):
                 # Update Loss
                 #lambda1 = (np.cos(x)+ x)/(x + 1) if lyr == 0 else (.5*np.sin(x) + x/7)/(.5 + x/7)
                 lambda1 = 1.0 if lyr ==0 else 0.75#(iternumber%10)/10
-                loss += torch.sum(torch.abs(self.err_units[lyr].TD_err))*lambda1
+                
+                if lyr != self.num_layers - 1:
+                    # If lyr == self.num_layers - 1, i.e. this is the top layer,
+                    # then the TD error at this layer will be 0 so it does not make a difference if we include this condition.
+                    if self.layer_losses_enabled[lyr]:
+                        loss += torch.sum(torch.abs(self.err_units[lyr].TD_err))*lambda1
+
                 # if lyr == 0:
                 #     loss += torch.sum(torch.abs(self.err_units[lyr].TD_err))
 
@@ -140,6 +181,14 @@ class PredCells(nn.Module):
         for st_unit, err_unit in zip(self.st_units, self.err_units):
             st_unit.init_vars()
             err_unit.init_vars()
+    
+    def enable_layer_training(self, lyr):
+        self.st_units[lyr].enable_training()
+        self.err_units[lyr].enable_training()
+    
+    def disable_layer_training(self, lyr):
+        self.st_units[lyr].disable_training()
+        self.err_units[lyr].disable_training()
 
 
 if __name__ == "__main__":
