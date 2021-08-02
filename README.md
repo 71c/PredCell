@@ -2,8 +2,8 @@
 This is the code that we are using for the PredCell project.
 
 ## Files
-- `predcell.py`: defines the architecture
 - `predcell_train.py`: trains PredCell
+- `predcell_subtractive_relu.py`: defines the architecture and its loss function
 
 ## How To Run
 1. Install any required python modules.

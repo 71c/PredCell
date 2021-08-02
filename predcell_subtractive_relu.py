@@ -101,12 +101,12 @@ class PredCells(nn.Module):
                 self.err_units.append(ErrorUnit(lyr, hidden_dim, hidden_dim))
 
 
-    def forward(self, input_sentence, iternumber):
+    def forward(self, input_sentence, iternumber= 1e10):
         loss = 0
         first_layer_loss = 0
         predictions = []
 
-        for t in range(self.total_timesteps):
+        for t in range(min(self.total_timesteps, len(input_sentence))):
             # input_char at each t is a one-hot character encoding
             input_char = input_sentence[t]  # 56 dim one hot vector
             for lyr in range(self.num_layers):
@@ -121,9 +121,8 @@ class PredCells(nn.Module):
                     pass
                 
                 # Update Loss
-                x = iternumber
                 #lambda1 = (np.cos(x)+ x)/(x + 1) if lyr == 0 else (.5*np.sin(x) + x/7)/(.5 + x/7)
-                lambda1 = 1.0 if lyr ==0 else 0.0001#(iternumber%10)/10
+                lambda1 = 1.0 if lyr ==0 else 0.75#(iternumber%10)/10
                 loss += torch.sum(torch.abs(self.err_units[lyr].TD_err))*lambda1
                 # if lyr == 0:
                 #     loss += torch.sum(torch.abs(self.err_units[lyr].TD_err))
