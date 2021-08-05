@@ -181,14 +181,14 @@ class PredCells(nn.Module):
         for st_unit, err_unit in zip(self.st_units, self.err_units):
             st_unit.init_vars()
             err_unit.init_vars()
-    
+
     def enable_layer_training(self, lyr):
         self.st_units[lyr].enable_training()
-        self.err_units[lyr].enable_training()
+        self.err_units[lyr-1].enable_training()
     
     def disable_layer_training(self, lyr):
         self.st_units[lyr].disable_training()
-        self.err_units[lyr].disable_training()
+        self.err_units[lyr-1].disable_training()
 
 
 if __name__ == "__main__":
